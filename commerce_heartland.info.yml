@@ -1,0 +1,8 @@
+name: Heartland Payment Gateway
+description: A token-based payment gateway using Heartland's Secure Submit
+package: Commerce (contrib)
+type: module
+version: 1.0
+core: 8.x
+dependencies:
+  - commerce:commerce_payment
