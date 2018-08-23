@@ -1,10 +1,10 @@
 secure-submit:
   version: 1.x
   js:
-    https://api2.heartlandportico.com/SecureSubmit.v1/token/2.1/securesubmit.js: { type: external, preprocess: false, minified: true, defer: true, async: true }
+    https://api2.heartlandportico.com/SecureSubmit.v1/token/2.1/securesubmit.js: { type: external }
 form:
   version: 1.x
   js:
-    js/form.js: { preprocess: false, minified: true, defer: true, async: true }
+    js/form.js: {}
   dependencies:
     - commerce_heartland/secure-submit

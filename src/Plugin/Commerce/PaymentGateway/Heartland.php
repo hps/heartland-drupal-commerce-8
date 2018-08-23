@@ -44,7 +44,7 @@ use GlobalPayments\Api\Services\ReportingService;
  *   },
  *   payment_method_types = {"credit_card"},
  *   credit_card_types = {
- *     "amex", "dinersclub", "discover", "jcb", "maestro", "mastercard", "visa",
+ *     "amex", "dinersclub", "discover", "jcb", "mastercard", "visa",
  *   },
  *   js_library = "commerce_heartland/form"
  * )
@@ -59,13 +59,25 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
      */
     public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, PaymentTypeManager $payment_type_manager, PaymentMethodTypeManager $payment_method_type_manager, TimeInterface $time)
     {
-        parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $payment_type_manager, $payment_method_type_manager, $time);
-  
+        parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $payment_type_manager, $payment_method_type_manager, $time);       
+    }
+
+    protected function authenticate()
+    {
+        $secretKey = $this->configuration['secret_key'];
+        $env = explode('_', $secretKey)[1];
+
+        if($env == "prod"){
+            $serviceUrl = 'https://api2-c.heartlandportico.com';
+        }else{
+            $serviceUrl = 'https://cert.api2-c.heartlandportico.com';
+        }
+
         // Heartland SDK - Authentication
         // https://developer.heartlandpaymentsystems.com/Documentation/authentication/#authentication
         $config = new ServicesConfig();
-        $config->secretApiKey = $this->configuration['secret_key'];
-        $config->serviceUrl = "https://cert.api2.heartlandportico.com";
+        $config->secretApiKey = $secretKey;
+        $config->serviceUrl = $serviceUrl;
         ServicesContainer::configure($config);
     }
 
@@ -87,7 +99,6 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         return [
             'public_key' => '',
             'secret_key' => '',
-            // 'store_card_data' => 'FALSE',
         ] + parent::defaultConfiguration();
     }
   
@@ -109,18 +120,11 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $form['secret_key'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Secret Key'),
-            '#description' => $this->t('Get your keys at <a href="https://developer.heartlandpaymentsystems.com/Account/KeysandCredentials" target="_blank">https://developer.heartlandpaymentsystems.com/Account/KeysandCredentials</a>.'),
+            '#description' => $this->t('Get your keys at the <a href="https://developer.heartlandpaymentsystems.com/Account/KeysandCredentials" target="_blank">Heartland Developer Portal</a>.'),
             '#default_value' => $this->configuration['secret_key'],
             '#required' => true,
         ];
 
-        // $form['store_card_data'] = [
-        //     '#type' => 'checkbox',
-        //     '#title' => $this->t('Store Card Data'),
-        //     '#description' => $this->t('Selet this option to store card data.  You must have multi-use token enabled on your Heartland Payment Systems account.'),
-        //     '#default_value' => FALSE,
-        // ];
-  
         return $form;
     }
   
@@ -139,11 +143,11 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
             $secret_env = explode('_', $values['secret_key'])[1];
 
             if (($mode == 'test' && $public_env == 'prod') || ($mode == 'live' && $public_env == 'cert')) {
-                $form_state->setError($form['public_key'], $this->t('Your public key does not match the mode (@mode).', ['@mode' => $values['mode']]));
+                $form_state->setError($form['public_key'], $this->t('Your public key does not match the mode (@mode).', ['@mode' => $mode]));
             }
 
             if (($mode == 'test' && $secret_env == 'prod') || ($mode == 'live' && $secret_env == 'cert')) {
-                $form_state->setError($form['secret_key'], $this->t('Your secret key does not match the mode (@mode).', ['@mode' => $values['mode']]));
+                $form_state->setError($form['secret_key'], $this->t('Your secret key does not match the mode (@mode).', ['@mode' => $mode]));
             }
         }
     }
@@ -159,7 +163,6 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
             $values = $form_state->getValue($form['#parents']);
             $this->configuration['public_key'] = $values['public_key'];
             $this->configuration['secret_key'] = $values['secret_key'];
-            // $this->configuration['store_card_data'] = $values['store_card_data'];
         }
     }
   
@@ -180,12 +183,14 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $amount = $payment->getAmount();
         $number = $amount->getNumber();
         $currency = $amount->getCurrencyCode();
-        $remote_id = $payment_method_token = $payment_method->getRemoteId();
+        $remote_id = $payment_method->getRemoteId();
+
+        $this->authenticate();
 
         // Heartland SDK - Prepare / Charge Credit Card
         // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#prepare-to-charge-a-credit-card
         $card = new CreditCardData();
-        $card->token = $payment_method_token;
+        $card->token = $remote_id;
 
         // Charge or Authorize depending on your Transaction Mode
         // Commerce -> Configuration -> Orders -> Checkout Flows -> Edit -> Payment -> Transaction mode
@@ -229,6 +234,8 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $number = $amount->getNumber();
         $currency = $amount->getCurrencyCode();
 
+        $this->authenticate();
+
         // Heartland SDK - Capture Authorization
         // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#capture-an-authorization
         try {
@@ -258,11 +265,10 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         // Perform the void request here, throw an exception if it fails.
         // See \Drupal\commerce_payment\Exception for the available exceptions.
 
-        // Set some variables to use for our transaction
+        // Set remote Id to use for our transaction
         $remote_id = $payment->getRemoteId();
-        $amount = $payment->getAmount();
-        $number = $amount->getNumber();
-        $currency = $amount->getCurrencyCode();
+
+        $this->authenticate();
 
         // Heartland SDK - Void Transaction
         // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#void-a-transaction
@@ -277,7 +283,6 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         } catch (GatewayException $e) {
             // If void fails because the auth/capture has completed and the batch is closed/settled
             // Do a refund instead
-            print_r('Void Failed, Try to Refund<br/>');
             $this->refundPayment($payment, $amount);
         }
     }
@@ -299,6 +304,8 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $remote_id = $payment->getRemoteId();
         $number = $amount->getNumber();
         $currency = $amount->getCurrencyCode();
+
+        $this->authenticate();
 
         // Heartland SDK - Refund Transaction
         // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#refund-a-transaction
@@ -329,16 +336,10 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
      */
     public function createPaymentMethod(PaymentMethodInterface $payment_method, array $payment_details)
     {
-        $required_keys = [
-            // The expected keys are payment gateway specific and usually match
-            // the PaymentMethodAddForm form elements. They are expected to be valid.
-            'token_value',
-        ];
-        foreach ($required_keys as $required_key) {
-            if (empty($payment_details[$required_key])) {
-                throw new \InvalidArgumentException(sprintf('$payment_details must contain the %s key.', $required_key));
-            }
-        }      
+        // $payment_details['token_value'] = NULL;
+        if (empty($payment_details['token_value'])) {
+            throw new \InvalidArgumentException(t('token_value is not set in $payment_details.'));
+        }
 
         // Keeps card data from being stored during processing.
         // Will need to update this for iteration 2, multi-use tokenization.

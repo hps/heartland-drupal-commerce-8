@@ -8,6 +8,3 @@ commerce_payment_gateway.plugin.heartland_gateway:
     secret_key:
       type: string
       label:  'Secret Key'
-    # store_card_data:
-    #   type: boolean
-    #   label: 'Enable Card Data Storage?'

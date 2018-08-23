@@ -23,60 +23,60 @@ class PaymentMethodAddForm extends BasePaymentMethodAddForm
         $element['#attached']['library'][] = 'commerce_heartland/secure-submit';
         $element['#attached']['library'][] = 'commerce_heartland/form';
 
-        $element['number'] = [
+        $element['card_number'] = [
             '#type' => 'text',
             '#required' => true,
             '#validated' => true,
-            '#markup' => '<div class="form-group">
-                <label for="iframesCardNumber">Card Number:</label>
-                <div class="iframeholder" id="iframesCardNumber"></div>
+            '#markup' => '<div>
+                <label for="heartlandCardNumber">Card Number:</label>
+                <div id="heartlandCardNumber"></div>
                 </div>',
         ];
 
         $element['expiration'] = [
             '#type' => 'text',
-            '#markup' => '<div class="form-group">
-                <label for="iframesCardExpiration">Card Expiration</label>
-                <div class="iframeholder" id="iframesCardExpiration"></div>
+            '#markup' => '<div>
+                <label for="heartlandCardExpiration">Card Expiration</label>
+                <div id="heartlandCardExpiration"></div>
                 </div>',
         ];
 
         $element['security_code'] = [
             '#type' => 'text',
-            '#markup' => '<div class="form-group">
-                <label for="iframesCardCvv">Card CVV</label>
-                <div class="iframeholder" id="iframesCardCvv"></div>
+            '#markup' => '<div>
+                <label for="heartlandCardCvv">Card CVV</label>
+                <div id="heartlandCardCvv"></div>
                 </div>',
         ];
 
         $element['token_value'] = [
             '#type' => 'hidden',
-            '#attributes' => ['id' => 'token_value'],
+            '#attributes' => ['id' => 'heartland_token_value'],
         ];
 
         $element['card_type'] = [
             '#type' => 'hidden',
-            '#attributes' => ['id' => 'card_type'],
+            '#attributes' => ['id' => 'heartland_card_type'],
         ];
 
         $element['last_four'] = [
             '#type' => 'hidden',
-            '#attributes' => ['id' => 'last_four'],
+            '#attributes' => ['id' => 'heartland_number'],
         ];
 
         $element['exp_month'] = [
             '#type' => 'hidden',
-            '#attributes' => ['id' => 'exp_month'],
+            '#attributes' => ['id' => 'heartland_exp_month'],
         ];
 
         $element['exp_year'] = [
             '#type' => 'hidden',
-            '#attributes' => ['id' => 'exp_year'],
+            '#attributes' => ['id' => 'heartland_exp_year'],
         ];
 
         $element['token_expire'] = [
             '#type' => 'hidden',
-            '#attributes' => ['id' => 'token_expire'],
+            '#attributes' => ['id' => 'heartland_token_expire'],
         ];
 
         return $element;
@@ -96,13 +96,5 @@ class PaymentMethodAddForm extends BasePaymentMethodAddForm
     public function submitCreditCardForm(array $element, FormStateInterface $form_state)
     {
         // The payment gateway plugin will process the submitted payment details.
-        $values = $form_state->getValues();
-
-        if (!empty($values['contact_information']['email'])) {
-            // then we are dealing with anonymous user. Adding a customer email.
-            $payment_details = $values['payment_information']['add_payment_method']['payment_details'];
-            $payment_details['customer_email'] = $values['contact_information']['email'];
-            $form_state->setValue(['payment_information', 'add_payment_method', 'payment_details'], $payment_details);
-        }
     }
 }
