@@ -18,6 +18,7 @@
         }
     ],
     "require": {
-        "globalpayments/php-sdk": "3.0.*"
+        "globalpayments/php-sdk": "~1.0",
+        "php": "~7.0"
     }
 }
