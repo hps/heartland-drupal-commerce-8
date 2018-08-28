@@ -1,6 +1,6 @@
 {
     "name": "hps/heartland-drupal-commerce-8",
-    "type": "library",
+    "type": "drupal-module",
     "description": "Heartland payment gateway plugin for Drupal 8 Commerce",
     "keywords": [
         "heartland",
@@ -19,6 +19,7 @@
     ],
     "require": {
         "globalpayments/php-sdk": "~1.0",
+        "drupal/commerce": "~2.0",
         "php": "~7.0"
     }
 }
