@@ -1,0 +1,10 @@
+#config/commerce_heartland.schema.yml
+commerce_payment_gateway.plugin.heartland_gateway:
+  type: commerce_payment_gateway_configuration
+  mapping:
+    public_key:
+      type: string
+      label:  'Public Key'
+    secret_key:
+      type: string
+      label:  'Secret Key'

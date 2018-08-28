@@ -1,0 +1,24 @@
+{
+    "name": "hps/heartland-drupal-commerce-8",
+    "type": "library",
+    "description": "Heartland payment gateway plugin for Drupal 8 Commerce",
+    "keywords": [
+        "heartland",
+        "payment",
+        "gateway",
+        "drupal 8",
+        "commerce"
+    ],
+    "homepage": "https://github.com/hps/heartland-drupal-commerce-8",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Heartland Developer Portal",
+            "email": "EntApp_DevPortal@e-hps.com"
+        }
+    ],
+    "require": {
+        "globalpayments/php-sdk": "~1.0",
+        "php": "~7.0"
+    }
+}
