@@ -1,5 +1,5 @@
 name: Heartland Payment Gateway
-description: A token-based payment gateway using Heartland's Secure Submit
+description: A token-based payment gateway using Heartland's Secure Submit with Drupal Commerce
 package: Commerce (contrib)
 type: module
 core: 8.x

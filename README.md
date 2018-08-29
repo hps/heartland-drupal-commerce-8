@@ -24,7 +24,7 @@ Using [Composer](https://getcomposer.org/)? Require this library in your `compos
 ```json
 {
     "require": {
-        "hps/heartland-drupal-commerce-8": "*"
+        "hps/commerce_heartland": "*"
     }
 }
 ```
