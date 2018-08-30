@@ -1,5 +1,5 @@
 {
-    "name": "hps/heartland-drupal-commerce-8",
+    "name": "hps/commerce_heartland",
     "type": "drupal-module",
     "description": "Heartland payment gateway plugin for Drupal 8 Commerce",
     "keywords": [
