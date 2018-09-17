@@ -23,17 +23,14 @@
             cardNumber: {
               target: 'heartlandCardNumber',
               placeholder: '•••• •••• •••• ••••',
-              value: '4111 1111 1111 1111'
             },
             cardExpiration: {
               target: 'heartlandCardExpiration',
               placeholder: 'MM / YYYY',
-              value: '02 / 2025'
             },
             cardCvv: {
               target: 'heartlandCardCvv',
               placeholder: 'CVV',
-              value: '123'
             }
           },
           // Collection of CSS to inject into the iframes.
