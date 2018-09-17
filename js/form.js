@@ -23,14 +23,17 @@
             cardNumber: {
               target: 'heartlandCardNumber',
               placeholder: '•••• •••• •••• ••••',
+              value: '4111 1111 1111 1111'
             },
             cardExpiration: {
               target: 'heartlandCardExpiration',
               placeholder: 'MM / YYYY',
+              value: '02 / 2025'
             },
             cardCvv: {
               target: 'heartlandCardCvv',
               placeholder: 'CVV',
+              value: '123'
             }
           },
           // Collection of CSS to inject into the iframes.
@@ -108,6 +111,7 @@
             $('#heartland_last_four', form).val(resp.last_four);
             $('#heartland_exp_month', form).val(resp.exp_month);
             $('#heartland_exp_year', form).val(resp.exp_year);
+            $('#heartland_token_expire', form).val(resp.token_expire);
             form.get(0).submit();
           },
           // Callback when an error is received from the service

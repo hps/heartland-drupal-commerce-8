@@ -23,14 +23,15 @@ use Drupal\Core\Form\FormStateInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-use GlobalPayments\Api\PaymentMethods\CreditCardData;
-use GlobalPayments\Api\Services\CreditService;
 use GlobalPayments\Api\ServicesConfig;
 use GlobalPayments\Api\ServicesContainer;
-use GlobalPayments\Api\Entities\Exceptions\GatewayException;
+use GlobalPayments\Api\Entities\Address;
+use GlobalPayments\Api\Entities\Customer;
 use GlobalPayments\Api\Entities\Transaction;
 use GlobalPayments\Api\Entities\Enums\PaymentMethodType;
-use GlobalPayments\Api\Services\ReportingService;
+use GlobalPayments\Api\Entities\Exceptions\GatewayException;
+use GlobalPayments\Api\PaymentMethods\CreditCardData;
+use GlobalPayments\Api\Services\CreditService;
 
 /**
  * Provides the On-site payment gateway.
@@ -59,7 +60,7 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
      */
     public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, PaymentTypeManager $payment_type_manager, PaymentMethodTypeManager $payment_method_type_manager, TimeInterface $time)
     {
-        parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $payment_type_manager, $payment_method_type_manager, $time);       
+        parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $payment_type_manager, $payment_method_type_manager, $time);
     }
 
     protected function authenticate()
@@ -67,9 +68,9 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $secretKey = $this->configuration['secret_key'];
         $env = explode('_', $secretKey)[1];
 
-        if($env == "prod"){
+        if ($env == "prod") {
             $serviceUrl = 'https://api2-c.heartlandportico.com';
-        }else{
+        } else {
             $serviceUrl = 'https://cert.api2-c.heartlandportico.com';
         }
 
@@ -99,6 +100,7 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         return [
             'public_key' => '',
             'secret_key' => '',
+            'subscriptions' => 'FALSE'
         ] + parent::defaultConfiguration();
     }
   
@@ -122,6 +124,14 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
             '#title' => $this->t('Secret Key'),
             '#description' => $this->t('Get your keys at the <a href="https://developer.heartlandpaymentsystems.com/Account/KeysandCredentials" target="_blank">Heartland Developer Portal</a>.'),
             '#default_value' => $this->configuration['secret_key'],
+            '#required' => true,
+        ];
+
+        $form['subscriptions'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Card Storage / Subscriptions'),
+            '#description' => $this->t('This feature requires Multi-Use Tokenization to be enabled on your Heartland Merchant Account.  Contact <a href="https://developer.heartlandpaymentsystems.com/Support" target="_blank">Support</a> for more details.'),
+            '#default_value' => $this->configuration['subscriptions'],
             '#required' => true,
         ];
 
@@ -163,6 +173,7 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
             $values = $form_state->getValue($form['#parents']);
             $this->configuration['public_key'] = $values['public_key'];
             $this->configuration['secret_key'] = $values['secret_key'];
+            $this->configuration['subscriptions'] = $values['subscriptions'];
         }
     }
   
@@ -184,6 +195,8 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $number = $amount->getNumber();
         $currency = $amount->getCurrencyCode();
         $remote_id = $payment_method->getRemoteId();
+        // Setting this so we can get the expiration month and year
+        $values = $payment_method->toArray();
 
         $this->authenticate();
 
@@ -191,6 +204,9 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#prepare-to-charge-a-credit-card
         $card = new CreditCardData();
         $card->token = $remote_id;
+        // User can update expiration date so we need to pass it in each time to make sure it's up-to-date
+        $card->expMonth = $values['card_exp_month'][0]['value'];
+        $card->expYear = $values['card_exp_year'][0]['value'];
 
         // Charge or Authorize depending on your Transaction Mode
         // Commerce -> Configuration -> Orders -> Checkout Flows -> Edit -> Payment -> Transaction mode
@@ -205,11 +221,12 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
                     ->execute();
             }
 
-            $remote_id = $response->transactionId;           
-            $next_state = $capture ? 'completed' : 'authorization';    
+            $remote_id = $response->transactionId;
+            $next_state = $capture ? 'completed' : 'authorization';
             
             // Commerce plugin sets state and remote Id for next step
             $payment->setState($next_state);
+            // The remote Id is the transaction Id from the gateway response stored inside the payment, not the payment method.
             $payment->setRemoteId($remote_id);
             $payment->save();
         } catch (GatewayException $e) {
@@ -336,14 +353,43 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
      */
     public function createPaymentMethod(PaymentMethodInterface $payment_method, array $payment_details)
     {
-        // $payment_details['token_value'] = NULL;
         if (empty($payment_details['token_value'])) {
             throw new \InvalidArgumentException(t('token_value is not set in $payment_details.'));
         }
 
-        // Keeps card data from being stored during processing.
-        // Will need to update this for iteration 2, multi-use tokenization.
-        $payment_method->setReusable(false);
+        // Retrieve a multi-use token and store non-sensitive card info if subscriptions option is enabled
+        // *** Multi-use tokenization must be enabled on your Heartland merchant account for this to work ***
+        if ($this->configuration['subscriptions']) {
+
+            // Enable Drupal to store non-sensitive card data
+            $payment_method->setReusable(true);
+
+            $this->authenticate();
+
+            // Heartland SDK - Prepare / Charge Credit Card
+            // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#prepare-to-charge-a-credit-card
+            $card = new CreditCardData();
+            $card->token = $payment_details['token_value'];
+
+            try {
+                // Heartland SDK - Requesting a multi-use token
+                // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#using-multi-use-tokens
+                $response = $card->tokenize()
+                    ->execute();
+
+                // Multi-use Token
+                $remote_id = $response->token;
+
+            } catch (GatewayException $e){
+                throw new PaymentGatewayException($e->getMessage());
+            } 
+        } else {
+            // Don't store payment information
+            $payment_method->setReusable(false);
+
+            // Single-use Token
+            $remote_id = $payment_details['token_value'];
+        }
 
         // Set values from form
         $payment_method->card_type = $payment_details['card_type'];
@@ -353,10 +399,7 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $expires = CreditCard::calculateExpirationTimestamp(trim($payment_details['exp_month']), $payment_details['exp_year']);
         $payment_method->setExpiresTime($expires);
 
-        // The remote Id returned by the request.
-        $remote_id = $payment_details['token_value'];
-
-        // Remote Id is token here, but later will be Transaction Id from the gateway response.
+        // The remote Id is a single or multi-use token stored inside the payment method
         $payment_method->setRemoteId($remote_id);
         $payment_method->save();
     }
@@ -366,13 +409,7 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
      */
     public function deletePaymentMethod(PaymentMethodInterface $payment_method)
     {
-        // Delete the remote record here, throw an exception if it fails.
-        // See \Drupal\commerce_payment\Exception for the available exceptions.
         // Delete the local entity.
-
-        // Will be implemented in iteration 2, multi-use tokenization.
-        // Delete token from database.  Not sure if anything needs to happen remote.
-
         $payment_method->delete();
     }
   
@@ -383,10 +420,6 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
     {
         // The default payment method edit form only supports updating billing info.
         $billing_profile = $payment_method->getBillingProfile();
-  
-        // Perform the update request here, throw an exception if it fails.
-        // See \Drupal\commerce_payment\Exception for the available exceptions.
-
-        // Will revisit for iteration 2, multi-use tokenization.
     }
+
 }
