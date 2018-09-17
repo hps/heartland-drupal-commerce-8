@@ -371,10 +371,14 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
             $card = new CreditCardData();
             $card->token = $payment_details['token_value'];
 
+            $address = new Address();
+            $address->code = $payment_method->getBillingProfile()->address->first()->getPostalCode();
+
             try {
                 // Heartland SDK - Requesting a multi-use token
                 // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#using-multi-use-tokens
                 $response = $card->tokenize()
+                    ->withAddress($address)
                     ->execute();
 
                 // Multi-use Token
