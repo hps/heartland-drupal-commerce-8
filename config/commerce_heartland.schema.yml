@@ -4,7 +4,11 @@ commerce_payment_gateway.plugin.heartland_gateway:
   mapping:
     public_key:
       type: string
-      label:  'Public Key'
+      label: 'Public Key'
     secret_key:
       type: string
-      label:  'Secret Key'
+      label: 'Secret Key'
+    subscriptions:
+      type: boolean
+      lable: 'Subscriptions'
+    

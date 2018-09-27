@@ -108,6 +108,7 @@
             $('#heartland_last_four', form).val(resp.last_four);
             $('#heartland_exp_month', form).val(resp.exp_month);
             $('#heartland_exp_year', form).val(resp.exp_year);
+            $('#heartland_token_expire', form).val(resp.token_expire);
             form.get(0).submit();
           },
           // Callback when an error is received from the service

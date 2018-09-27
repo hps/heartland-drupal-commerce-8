@@ -61,7 +61,7 @@ class PaymentMethodAddForm extends BasePaymentMethodAddForm
 
         $element['last_four'] = [
             '#type' => 'hidden',
-            '#attributes' => ['id' => 'heartland_number'],
+            '#attributes' => ['id' => 'heartland_last_four'],
         ];
 
         $element['exp_month'] = [
