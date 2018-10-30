@@ -231,8 +231,18 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
                 $response = $response->execute();
 
                 // Updating the payment method to contain the multi-use token for next time.
-                $payment_method->setRemoteId('mut'.$response->token);
-                $payment_method->save();
+                if (isset($response->token) && !empty($response->token)) {
+                    $payment_method->setRemoteId('mut'.$response->token);
+                    $payment_method->setReusable(true);
+                    $payment_method->save();                                 
+                } else {
+                    // This has to be set in createPaymentMethod so Drupal will save non-sensitive card info
+                    // We're going to try to unset it here since retrieving the token failed
+                    $payment_method->setReusable(false);
+                    $payment_method->save();
+                    throw new PaymentGatewayException('There was an issue retrieving multi-use token. Response Code: '.$response->responseCode.' Response Message: '.$response->responseMessage);
+                }
+
             } else {
                 $response = $response->execute();
             }
@@ -379,11 +389,7 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         // Retrieve a multi-use token and store non-sensitive card info if subscriptions option is enabled
         // *** Multi-use tokenization must be enabled on your Heartland merchant account for this to work ***
         if ($this->configuration['subscriptions']) {
-
-            // Enable Drupal to store non-sensitive card data
-            $payment_method->setReusable(true);
-
-            if ($route_name != 'commerce_checkout.form') { // The user is on the Add Payment Method screen
+            if ($route_name != 'commerce_checkout.form') { // The user is on the Add Payment Method screen, not checking out
                 $this->authenticate();
 
                 // Heartland SDK - Prepare / Charge Credit Card
@@ -402,7 +408,14 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
                         ->execute();
 
                     // Multi-use Token
-                    $remote_id = 'mut'.$response->token;
+                    if (isset($response->token) && !empty($response->token)) {
+                        $remote_id = 'mut'.$response->token;
+
+                        // Enable Drupal to store non-sensitive card data
+                        $payment_method->setReusable(true);
+                    } else {
+                        throw new PaymentGatewayException('There was an issue retrieving multi-use token. Response Code: '.$response->responseCode.' Response Message: '.$response->responseMessage);
+                    }
                 } catch (GatewayException $e) {
                     throw new PaymentGatewayException($e->getMessage());
                 }
