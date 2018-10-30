@@ -234,15 +234,10 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
                 if (isset($response->token) && !empty($response->token)) {
                     $payment_method->setRemoteId('mut'.$response->token);
                     $payment_method->setReusable(true);
-                    $payment_method->save();                                 
                 } else {
-                    // This has to be set in createPaymentMethod so Drupal will save non-sensitive card info
-                    // We're going to try to unset it here since retrieving the token failed
                     $payment_method->setReusable(false);
-                    $payment_method->save();
-                    throw new PaymentGatewayException('There was an issue retrieving multi-use token. Response Code: '.$response->responseCode.' Response Message: '.$response->responseMessage);
                 }
-
+                $payment_method->save();
             } else {
                 $response = $response->execute();
             }
