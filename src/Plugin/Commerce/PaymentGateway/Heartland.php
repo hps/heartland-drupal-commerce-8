@@ -79,6 +79,8 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $config = new ServicesConfig();
         $config->secretApiKey = $secretKey;
         $config->serviceUrl = $serviceUrl;
+        $config->developerId = '002914';
+        $config->versionNumber = '3114';
         ServicesContainer::configure($config);
     }
 
@@ -132,7 +134,6 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
             '#title' => $this->t('Enable Card Storage / Subscriptions'),
             '#description' => $this->t('This feature requires Multi-Use Tokenization to be enabled on your Heartland Merchant Account.  Contact <a href="https://developer.heartlandpaymentsystems.com/Support" target="_blank">Support</a> for more details.'),
             '#default_value' => $this->configuration['subscriptions'],
-            '#required' => true,
         ];
 
         return $form;
@@ -194,7 +195,8 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $amount = $payment->getAmount();
         $number = $amount->getNumber();
         $currency = $amount->getCurrencyCode();
-        $remote_id = $payment_method->getRemoteId();
+        $remote_id = mb_substr($payment_method->getRemoteId(), 3);
+        $token_type = mb_substr($payment_method->getRemoteId(), 0, 3);
         // Setting this so we can get the expiration month and year
         $values = $payment_method->toArray();
 
@@ -208,18 +210,38 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         $card->expMonth = $values['card_exp_month'][0]['value'];
         $card->expYear = $values['card_exp_year'][0]['value'];
 
+        $address = new Address();
+        $address->postalCode = $payment_method->getBillingProfile()->address->first()->getPostalCode();
+
         // Charge or Authorize depending on your Transaction Mode
         // Commerce -> Configuration -> Orders -> Checkout Flows -> Edit -> Payment -> Transaction mode
         try {
             if ($capture) {
-                $response = $card->charge($number)
-                    ->withCurrency($currency)
-                    ->execute();
+                $response = $card->charge($number);
             } else {
-                $response = $card->authorize($number)
-                    ->withCurrency($currency)
-                    ->execute();
+                $response = $card->authorize($number);
             }
+
+            $response = $response->withCurrency($currency)
+                ->withAddress($address);
+
+            if ($token_type == 'sut' && $this->configuration['subscriptions']) {
+                $response = $response->withRequestMultiUseToken(true);
+
+                $response = $response->execute();
+
+                // Updating the payment method to contain the multi-use token for next time.
+                if (isset($response->token) && !empty($response->token)) {
+                    $payment_method->setRemoteId('mut'.$response->token);
+                    $payment_method->setReusable(true);
+                } else {
+                    $payment_method->setReusable(false);
+                }
+                $payment_method->save();
+            } else {
+                $response = $response->execute();
+            }
+
 
             $remote_id = $response->transactionId;
             $next_state = $capture ? 'completed' : 'authorization';
@@ -353,6 +375,8 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
      */
     public function createPaymentMethod(PaymentMethodInterface $payment_method, array $payment_details)
     {
+        $route_name = \Drupal::routeMatch()->getRouteName();
+
         if (empty($payment_details['token_value'])) {
             throw new \InvalidArgumentException(t('token_value is not set in $payment_details.'));
         }
@@ -360,39 +384,46 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         // Retrieve a multi-use token and store non-sensitive card info if subscriptions option is enabled
         // *** Multi-use tokenization must be enabled on your Heartland merchant account for this to work ***
         if ($this->configuration['subscriptions']) {
+            if ($route_name != 'commerce_checkout.form') { // The user is on the Add Payment Method screen, not checking out
+                $this->authenticate();
 
-            // Enable Drupal to store non-sensitive card data
-            $payment_method->setReusable(true);
+                // Heartland SDK - Prepare / Charge Credit Card
+                // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#prepare-to-charge-a-credit-card
+                $card = new CreditCardData();
+                $card->token = $payment_details['token_value'];
 
-            $this->authenticate();
+                $address = new Address();
+                $address->postalCode = $payment_method->getBillingProfile()->address->first()->getPostalCode();
 
-            // Heartland SDK - Prepare / Charge Credit Card
-            // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#prepare-to-charge-a-credit-card
-            $card = new CreditCardData();
-            $card->token = $payment_details['token_value'];
+                try {
+                    // Heartland SDK - Requesting a multi-use token
+                    // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#using-multi-use-tokens
+                    $response = $card->tokenize()
+                        ->withAddress($address)
+                        ->execute();
 
-            $address = new Address();
-            $address->postalCode = $payment_method->getBillingProfile()->address->first()->getPostalCode();
+                    // Multi-use Token
+                    if (isset($response->token) && !empty($response->token)) {
+                        $remote_id = 'mut'.$response->token;
 
-            try {
-                // Heartland SDK - Requesting a multi-use token
-                // https://developer.heartlandpaymentsystems.com/Documentation/credit-card-payments/#using-multi-use-tokens
-                $response = $card->tokenize()
-                    ->withAddress($address)
-                    ->execute();
-
-                // Multi-use Token
-                $remote_id = $response->token;
-
-            } catch (GatewayException $e){
-                throw new PaymentGatewayException($e->getMessage());
-            } 
+                        // Enable Drupal to store non-sensitive card data
+                        $payment_method->setReusable(true);
+                    } else {
+                        throw new PaymentGatewayException('There was an issue retrieving multi-use token. Response Code: '.$response->responseCode.' Response Message: '.$response->responseMessage);
+                    }
+                } catch (GatewayException $e) {
+                    throw new PaymentGatewayException($e->getMessage());
+                }
+            } else {
+                // Single-use Token, we will get multi-use token when we charge in createPayment()
+                $remote_id = 'sut'.$payment_details['token_value'];
+            }
         } else {
             // Don't store payment information
             $payment_method->setReusable(false);
 
             // Single-use Token
-            $remote_id = $payment_details['token_value'];
+            $remote_id = 'sut'.$payment_details['token_value'];
         }
 
         // Set values from form
@@ -425,5 +456,4 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         // The default payment method edit form only supports updating billing info.
         $billing_profile = $payment_method->getBillingProfile();
     }
-
 }
