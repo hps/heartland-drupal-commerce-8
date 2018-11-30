@@ -10,6 +10,8 @@ Supported features include:
 * Process payments using charge or delayed capture
 * Full and partial refunds
 * Void or capture authorizations
+* Card Storage
+* Recurring Payments
 
 
 ## Developer Support
@@ -30,6 +32,12 @@ Using [Composer](https://getcomposer.org/)? Require this library in your `compos
 ```
 
 and run `composer update` to pull down the dependency and update your autoloader.
+
+### Recurring Payments
+
+Additional setup is required to accomplish recurring payments.  Please install and configure [Commerce Recurring](https://www.drupal.org/project/commerce_recurring) and [Advanced Queue](https://www.drupal.org/project/advancedqueue).
+
+Both plugins can be installed manually or using composer.
 
 
 ## API Keys
