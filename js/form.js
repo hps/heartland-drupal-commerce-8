@@ -120,7 +120,9 @@
         // Attach a handler to interrupt the form submission
         form.on('submit.heartland', function (e) {
           // Prevent the form from continuing to the `action` address
-          e.preventDefault();
+          if ($('[name="payment_information[payment_method]"]').is(':checked')) {
+            e.preventDefault();
+          }
           // Tell the iframes to tokenize the data
           hps.Messages.post(
             {
