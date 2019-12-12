@@ -1,20 +1,22 @@
-(function ($, Drupal, Heartland, drupalSettings) {
+(function (window, $, Drupal, Heartland, drupalSettings) {
   'use strict';
 
   Drupal.behaviors.heartlandForm = {
     attach: function (context) {
 
-      if (!drupalSettings.heartland.publicKey) {
-        return;
-      }
-
       $('.heartland-form', context).once('heartland-processed').each(function () {
-        var key = drupalSettings.heartland.publicKey;
-        var form = $(this).closest('form');
+        window.__hps = {};
+
+        if (!drupalSettings.heartland || !drupalSettings.heartland.publicKey) {
+          return;
+        }
+
+        __hps.key = drupalSettings.heartland.publicKey;
+        __hps.form = $(this).closest('form');
 
         // Create a new `HPS` object with the necessary configuration
-        var hps = new Heartland.HPS({
-          publicKey: key,
+        __hps.heartland = new Heartland.HPS({
+          publicKey: __hps.key,
           type: 'iframe',
           // Configure the iframe fields to tell the library where
           // the iframe should be inserted into the DOM and some
@@ -103,13 +105,13 @@
           },
           // Callback when a token is received from the service
           onTokenSuccess: function (resp) {
-            $('#heartland_token_value', form).val(resp.token_value);
-            $('#heartland_card_type', form).val(resp.card_type);
-            $('#heartland_last_four', form).val(resp.last_four);
-            $('#heartland_exp_month', form).val(resp.exp_month);
-            $('#heartland_exp_year', form).val(resp.exp_year);
-            $('#heartland_token_expire', form).val(resp.token_expire);
-            form.get(0).submit();
+            $('#heartland_token_value', __hps.form).val(resp.token_value);
+            $('#heartland_card_type', __hps.form).val(resp.card_type);
+            $('#heartland_last_four', __hps.form).val(resp.last_four);
+            $('#heartland_exp_month', __hps.form).val(resp.exp_month);
+            $('#heartland_exp_year', __hps.form).val(resp.exp_year);
+            $('#heartland_token_expire', __hps.form).val(resp.token_expire);
+            __hps.form.get(0).submit();
           },
           // Callback when an error is received from the service
           onTokenError: function (resp) {
@@ -118,23 +120,31 @@
         });
 
         // Attach a handler to interrupt the form submission
-        form.on('submit.heartland', function (e) {
-          // Prevent the form from continuing to the `action` address
-          if ($('[name="payment_information[payment_method]"]').is(':checked')) {
-            e.preventDefault();
-          }
-          // Tell the iframes to tokenize the data
-          hps.Messages.post(
-            {
-              accumulateData: true,
-              action: 'tokenize',
-              message: key
-            },
-            'cardNumber'
-          );
-        });
+        __hps.form.on('submit.heartland', submitForm);
       });
+    },
 
+    detach: function(context) {
+      try {
+        __hps.heartland.dispose();
+      } catch (e) { /* om nom nom */ }
+      try {
+        __hps.form.off('submit.heartland', submitForm);
+      } catch (e) { /* om nom nom */ }
     }
   }
-})(jQuery, Drupal, Heartland, drupalSettings);
+
+  function submitForm (e) {
+    e.preventDefault();
+
+    // Tell the iframes to tokenize the data
+    __hps.heartland.Messages.post(
+      {
+        accumulateData: true,
+        action: 'tokenize',
+        message: __hps.key
+      },
+      'cardNumber'
+    );
+  }
+})(window, jQuery, Drupal, Heartland, drupalSettings);
