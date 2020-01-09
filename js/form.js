@@ -1,15 +1,25 @@
 (function (window, $, Drupal, Heartland, drupalSettings) {
   'use strict';
 
+  var lastAction = '';
+
+  $(document.body).click(function(e){
+    try {
+      lastAction = e.originalEvent.path[0].name;
+    } catch (e) {
+      lastAction = '';
+    }
+  }); 
+
+  window.__hps = {};
   Drupal.behaviors.heartlandForm = {
     attach: function (context) {
+      if (!drupalSettings.heartland || !drupalSettings.heartland.publicKey) {
+        return;
+      }
 
       $('.heartland-form', context).once('heartland-processed').each(function () {
-        window.__hps = {};
-
-        if (!drupalSettings.heartland || !drupalSettings.heartland.publicKey) {
-          return;
-        }
+        __hps = {};
 
         __hps.key = drupalSettings.heartland.publicKey;
         __hps.form = $(this).closest('form');
@@ -125,16 +135,27 @@
     },
 
     detach: function(context) {
-      try {
-        __hps.heartland.dispose();
-      } catch (e) { /* om nom nom */ }
-      try {
-        __hps.form.off('submit.heartland', submitForm);
-      } catch (e) { /* om nom nom */ }
+      if (lastAction == 'payment_information[add_payment_method][billing_information][select_address]') {
+        return;
+      }
+
+      $('.heartland-form', context).each(function () {
+        try {
+          __hps.heartland.dispose();
+        } catch (e) { /* om nom nom */ }
+
+        try {
+          __hps.form.off('submit.heartland', submitForm);
+        } catch (e) { /* om nom nom */ }
+      });
     }
   }
 
   function submitForm (e) {
+    if ( __hps.heartland == undefined ) {
+      return;
+    }
+
     e.preventDefault();
 
     // Tell the iframes to tokenize the data
