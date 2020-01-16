@@ -230,6 +230,10 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
 
                 $response = $response->execute();
 
+                if ($response->responseCode != 00 && $response->responseCode != 85) {
+                    throw new PaymentGatewayException('The payment was not successful.  Please try again or contact support for help. Response code: ' . $response->responseCode .' Response Message: ' . $response->responseMessage);
+                }
+
                 // Updating the payment method to contain the multi-use token for next time.
                 if (isset($response->token) && !empty($response->token)) {
                     $payment_method->setRemoteId('mut'.$response->token);
@@ -240,6 +244,10 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
                 $payment_method->save();
             } else {
                 $response = $response->execute();
+
+                if ($response->responseCode != 00 && $response->responseCode != 85) {
+                    throw new PaymentGatewayException('The payment was not successful.  Please try again or contact support for help. Response code: ' . $response->responseCode .' Response Message: ' . $response->responseMessage);
+                }
             }
 
 
@@ -282,6 +290,10 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
                 ->capture($number)
                 ->withCurrency($currency)
                 ->execute();
+                
+            if ($response->responseCode != 00 && $response->responseCode != 85) {
+                throw new PaymentGatewayException('The payment was not successful.  Please try again or contact support for help. Response code: ' . $response->responseCode .' Response Message: ' . $response->responseMessage);
+            }
 
             // Commerce plugin sets state and amount for next step
             $payment->setState('completed');
@@ -322,7 +334,7 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
         } catch (GatewayException $e) {
             // If void fails because the auth/capture has completed and the batch is closed/settled
             // Do a refund instead
-            $this->refundPayment($payment, $amount);
+            $this->refundPayment($payment);
         }
     }
   
@@ -401,6 +413,10 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
                     $response = $card->tokenize()
                         ->withAddress($address)
                         ->execute();
+                        
+                    if ($response->responseCode != 00 && $response->responseCode != 85) {
+                        throw new PaymentGatewayException('The payment was not successful.  Please try again or contact support for help. Response code: ' . $response->responseCode .' Response Message: ' . $response->responseMessage);
+                    }
 
                     // Multi-use Token
                     if (isset($response->token) && !empty($response->token)) {
@@ -409,7 +425,7 @@ class Heartland extends OnsitePaymentGatewayBase implements OnsiteInterface
                         // Enable Drupal to store non-sensitive card data
                         $payment_method->setReusable(true);
                     } else {
-                        throw new PaymentGatewayException('There was an issue retrieving multi-use token. Response Code: '.$response->responseCode.' Response Message: '.$response->responseMessage);
+                        throw new PaymentGatewayException('There was an issue retrieving multi-use token. Response Code: ' . $response->responseCode . ' Response Message: '.$response->responseMessage);
                     }
                 } catch (GatewayException $e) {
                     throw new PaymentGatewayException($e->getMessage());
