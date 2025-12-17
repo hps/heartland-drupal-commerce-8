@@ -1,3 +1,5 @@
+## **This repository is no longer maintained. For a list of supported plugins, visit us [here](https://github.com/globalpayments).**
+
 <a href="http://developer.heartlandpaymentsystems.com" target="_blank">
 	<img src="http://developer.heartlandpaymentsystems.com/Resource/Download/sdk-readme-heartland-logo" alt="Heartland logo" title="Heartland" align="right" />
 </a>
